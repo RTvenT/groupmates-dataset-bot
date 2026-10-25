@@ -15,7 +15,7 @@ class DatasetService:
 
     async def add_photo(self, folder_id: str, data: bytes) -> str:
         """Загружает фото в папку и возвращает имя, под которым оно сохранено."""
-        prepared = await asyncio.to_thread(images.letterbox, data, self._image_size)
+        prepared = await asyncio.to_thread(images.resize_square, data, self._image_size)
         # Под локом папки: иначе два параллельных фото получат один и тот же номер
         async with self._folder_locks(folder_id):
             folder = await self._drive.get_folder(folder_id)

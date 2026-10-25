@@ -52,7 +52,7 @@ async def test_scanner_renumbers_after_deletion(drive):
     assert drive.names(other.id) == ["Mariia_1.jpg"]
 
 
-async def test_uploaded_photo_is_letterboxed(drive):
+async def test_uploaded_photo_is_resized_to_square(drive):
     folder = drive.add_folder("Андрей Ким")
     dataset, _ = make_services(drive)
     await dataset.add_photo(folder.id, make_image(1920, 1080))
