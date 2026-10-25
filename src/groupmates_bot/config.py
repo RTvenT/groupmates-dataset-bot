@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     allowed_users: Annotated[frozenset[int], NoDecode] = frozenset()
     # Прокси для Telegram API, например socks5://127.0.0.1:1080 или http://127.0.0.1:8080
     telegram_proxy: str | None = None
+
+    # Сторона квадрата, к которому приводятся фото (вход YOLO)
+    image_size: int = Field(default=640, gt=0)
+    # Интервал пересканирования Диска в секундах; 0 — не сканировать
+    scan_interval: float = Field(default=600, ge=0)
 
     google_credentials_file: Path = Path("credentials.json")
     google_token_file: Path = Path("token.json")

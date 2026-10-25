@@ -1,39 +1,36 @@
 import logging
-from datetime import datetime
 
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from PIL import UnidentifiedImageError
 
-from groupmates_bot.services.drive import DriveService
+from groupmates_bot.services.dataset import DatasetService
 
 router = Router(name="photos")
 log = logging.getLogger(__name__)
 
 
 @router.message(F.photo | F.document.mime_type.startswith("image/"))
-async def upload_photo(message: Message, state: FSMContext, bot: Bot, drive: DriveService) -> None:
+async def upload_photo(
+    message: Message, state: FSMContext, bot: Bot, dataset: DatasetService
+) -> None:
     data = await state.get_data()
     folder_id = data.get("folder_id")
     if not folder_id:
         await message.answer("Сначала выбери папку — /start")
         return
 
-    if message.photo:
-        file = message.photo[-1]  # максимальное разрешение
-        ext, mime = "jpg", "image/jpeg"
-    else:  # фото, отправленное как файл (без сжатия)
-        file = message.document
-        mime = file.mime_type or "application/octet-stream"
-        name = file.file_name or "img.jpg"
-        ext = name.rsplit(".", 1)[-1] if "." in name else "jpg"
-
-    buffer = await bot.download(file)
-    filename = f"{datetime.now():%Y%m%d_%H%M%S}_{file.file_unique_id}.{ext}"
+    # photo[-1] — максимальное разрешение; document — фото, отправленное файлом
+    file = message.photo[-1] if message.photo else message.document
     try:
-        await drive.upload_file(buffer.getvalue(), filename, mime, folder_id)
+        buffer = await bot.download(file)
+        filename = await dataset.add_photo(folder_id, buffer.getvalue())
+    except UnidentifiedImageError:
+        await message.answer("❌ Не удалось прочитать изображение, пришли его в JPG или PNG.")
+        return
     except Exception:
         log.exception("upload failed")
         await message.answer("❌ Не удалось загрузить файл, попробуй ещё раз.")
         return
-    await message.answer(f"☁️ Загружено в «{data['folder_name']}»")
+    await message.answer(f"☁️ Загружено в «{data['folder_name']}» как {filename}")
