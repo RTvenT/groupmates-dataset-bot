@@ -64,13 +64,8 @@ class Rename:
     new_name: str
 
 
-def plan_renumbering(files: Sequence[DriveFile], prefix: str) -> list[Rename]:
-    """Какие файлы переименовать, чтобы получилась сплошная нумерация 1..N.
-
-    Порядок сохраняется: сначала файлы с номером (по возрастанию номера), затем
-    файлы с посторонними именами (по дате создания). Заодно исправляется префикс,
-    если папку переименовали.
-    """
+def sort_by_index(files: Sequence[DriveFile]) -> list[DriveFile]:
+    """Сначала файлы с номером (по возрастанию), затем остальные (по дате создания)."""
 
     def order(f: DriveFile) -> tuple[int, int, datetime, str]:
         index = parse_index(f.name)
@@ -78,8 +73,17 @@ def plan_renumbering(files: Sequence[DriveFile], prefix: str) -> list[Rename]:
             return (1, 0, f.created_time, f.id)
         return (0, index, f.created_time, f.id)
 
+    return sorted(files, key=order)
+
+
+def plan_renumbering(files: Sequence[DriveFile], prefix: str) -> list[Rename]:
+    """Какие файлы переименовать, чтобы получилась сплошная нумерация 1..N.
+
+    Порядок сохраняется (см. sort_by_index). Заодно исправляется префикс,
+    если папку переименовали.
+    """
     renames = []
-    for position, file in enumerate(sorted(files, key=order), start=1):
+    for position, file in enumerate(sort_by_index(files), start=1):
         expected = build_name(prefix, position)
         if file.name != expected:
             renames.append(Rename(file=file, new_name=expected))

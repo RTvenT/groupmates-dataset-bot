@@ -5,7 +5,8 @@ from datetime import datetime
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 MAX_FOLDERS = 30
@@ -24,6 +25,7 @@ class DriveFile:
     name: str
     mime_type: str
     created_time: datetime
+    folder_id: str | None = None
 
 
 class DriveService:
@@ -59,6 +61,17 @@ class DriveService:
     async def rename_file(self, file_id: str, name: str) -> None:
         await asyncio.to_thread(self._rename_file, file_id, name)
 
+    async def get_file(self, file_id: str) -> DriveFile | None:
+        """Файл по id или None, если его нет или он в корзине."""
+        return await asyncio.to_thread(self._get_file, file_id)
+
+    async def download_file(self, file_id: str) -> bytes:
+        return await asyncio.to_thread(self._download_file, file_id)
+
+    async def trash_file(self, file_id: str) -> None:
+        """Перемещает файл в корзину Диска (его можно восстановить ещё 30 дней)."""
+        await asyncio.to_thread(self._trash_file, file_id)
+
     def _list(self, q: str, fields: str, order_by: str, limit: int | None) -> list[dict]:
         files = self._client().files()
         items: list[dict] = []
@@ -84,16 +97,8 @@ class DriveService:
 
     def _list_images(self, folder_id: str) -> list[DriveFile]:
         q = f"mimeType contains 'image/' and '{folder_id}' in parents and trashed=false"
-        items = self._list(q, "id,name,mimeType,createdTime", "createdTime", None)
-        return [
-            DriveFile(
-                id=f["id"],
-                name=f["name"],
-                mime_type=f["mimeType"],
-                created_time=datetime.fromisoformat(f["createdTime"].replace("Z", "+00:00")),
-            )
-            for f in items
-        ]
+        items = self._list(q, _FILE_FIELDS, "createdTime", None)
+        return [_to_drive_file(f) for f in items]
 
     def _create_folder(self, name: str) -> Folder:
         meta = {"name": name, "mimeType": FOLDER_MIME, "parents": [self.root_folder_id]}
@@ -113,3 +118,41 @@ class DriveService:
 
     def _rename_file(self, file_id: str, name: str) -> None:
         self._client().files().update(fileId=file_id, body={"name": name}).execute()
+
+    def _get_file(self, file_id: str) -> DriveFile | None:
+        try:
+            res = (
+                self._client()
+                .files()
+                .get(fileId=file_id, fields=f"{_FILE_FIELDS},trashed")
+                .execute()
+            )
+        except HttpError as e:
+            if e.resp.status == 404:
+                return None
+            raise
+        return None if res.get("trashed") else _to_drive_file(res)
+
+    def _download_file(self, file_id: str) -> bytes:
+        buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(buffer, self._client().files().get_media(fileId=file_id))
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        return buffer.getvalue()
+
+    def _trash_file(self, file_id: str) -> None:
+        self._client().files().update(fileId=file_id, body={"trashed": True}).execute()
+
+
+_FILE_FIELDS = "id,name,mimeType,createdTime,parents"
+
+
+def _to_drive_file(item: dict) -> DriveFile:
+    return DriveFile(
+        id=item["id"],
+        name=item["name"],
+        mime_type=item["mimeType"],
+        created_time=datetime.fromisoformat(item["createdTime"].replace("Z", "+00:00")),
+        folder_id=(item.get("parents") or [None])[0],
+    )

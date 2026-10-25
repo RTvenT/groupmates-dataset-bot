@@ -7,11 +7,9 @@ from PIL import UnidentifiedImageError
 
 from groupmates_bot.services.dataset import DatasetService
 
-router = Router(name="photos")
 log = logging.getLogger(__name__)
 
 
-@router.message(F.photo | F.document.mime_type.startswith("image/"))
 async def upload_photo(
     message: Message, state: FSMContext, bot: Bot, dataset: DatasetService
 ) -> None:
@@ -34,3 +32,9 @@ async def upload_photo(
         await message.answer("❌ Не удалось загрузить файл, попробуй ещё раз.")
         return
     await message.answer(f"☁️ Загружено в «{data['folder_name']}» как {filename}")
+
+
+def create_router() -> Router:
+    router = Router(name="photos")
+    router.message.register(upload_photo, F.photo | F.document.mime_type.startswith("image/"))
+    return router

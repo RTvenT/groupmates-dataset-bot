@@ -1,5 +1,3 @@
-import asyncio
-import contextlib
 import logging
 from collections.abc import Sequence
 
@@ -11,31 +9,17 @@ log = logging.getLogger(__name__)
 
 
 class CloudScanner:
-    """Периодически обходит папки датасета на Диске и прогоняет по ним задачи."""
+    """Обходит папки датасета на Диске и прогоняет по ним задачи (запуск по требованию)."""
 
     def __init__(
         self,
         drive: DriveService,
         folder_locks: KeyedLocks,
         tasks: Sequence[ScanTask],
-        interval: float,
     ) -> None:
         self._drive = drive
         self._folder_locks = folder_locks
         self._tasks = list(tasks)
-        self._interval = interval
-        self._runner: asyncio.Task | None = None
-
-    async def start(self) -> None:
-        if self._runner is None:
-            self._runner = asyncio.create_task(self._run_forever(), name="cloud-scanner")
-
-    async def stop(self) -> None:
-        if self._runner is not None:
-            self._runner.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._runner
-            self._runner = None
 
     async def scan_once(self) -> list[FolderSnapshot]:
         folders = await self._drive.list_folders(limit=None)
@@ -62,12 +46,3 @@ class CloudScanner:
                 except Exception:
                     log.exception("task %s failed on folder %r", task.name, folder.name)
         return snapshot
-
-    async def _run_forever(self) -> None:
-        while True:
-            try:
-                snapshots = await self.scan_once()
-                log.info("cloud scan finished: %d folders", len(snapshots))
-            except Exception:
-                log.exception("cloud scan failed")
-            await asyncio.sleep(self._interval)
