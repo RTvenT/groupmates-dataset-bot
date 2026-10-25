@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from groupmates_bot.config import Settings
@@ -33,6 +34,7 @@ async def run() -> None:
     )
     drive = DriveService(credentials, settings.root_folder_id)
 
-    bot = Bot(token=settings.bot_token.get_secret_value())
+    session = AiohttpSession(proxy=settings.telegram_proxy) if settings.telegram_proxy else None
+    bot = Bot(token=settings.bot_token.get_secret_value(), session=session)
     dp = build_dispatcher(settings, drive)
     await dp.start_polling(bot)

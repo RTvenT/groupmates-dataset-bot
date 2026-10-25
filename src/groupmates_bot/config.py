@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     root_folder_id: str = "root"
     # Разрешённые Telegram user id через запятую (пусто = доступ всем!)
     allowed_users: Annotated[frozenset[int], NoDecode] = frozenset()
+    # Прокси для Telegram API, например socks5://127.0.0.1:1080 или http://127.0.0.1:8080
+    telegram_proxy: str | None = None
 
     google_credentials_file: Path = Path("credentials.json")
     google_token_file: Path = Path("token.json")
