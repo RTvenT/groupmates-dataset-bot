@@ -1,2 +1,10 @@
+# секреты
 .env
 *.json
+
+# python / uv
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+dist/
