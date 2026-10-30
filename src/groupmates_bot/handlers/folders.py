@@ -6,8 +6,6 @@ from groupmates_bot.keyboards.folders import NewFolder, PickFolder, folders_keyb
 from groupmates_bot.services.drive import DriveService
 from groupmates_bot.states import FolderStates
 
-router = Router(name="folders")
-
 MAX_FOLDER_NAME = 100
 
 
@@ -17,14 +15,12 @@ async def send_folders(message: Message, drive: DriveService) -> None:
     await message.answer(text, reply_markup=folders_keyboard(folders))
 
 
-@router.callback_query(NewFolder.filter())
 async def ask_folder_name(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     await state.set_state(FolderStates.waiting_for_name)
     await callback.message.edit_text("Напиши название новой папки:")
 
 
-@router.callback_query(PickFolder.filter())
 async def pick_folder(
     callback: CallbackQuery, callback_data: PickFolder, state: FSMContext, drive: DriveService
 ) -> None:
@@ -37,7 +33,6 @@ async def pick_folder(
     )
 
 
-@router.message(FolderStates.waiting_for_name, F.text)
 async def create_folder(message: Message, state: FSMContext, drive: DriveService) -> None:
     name = message.text.strip()[:MAX_FOLDER_NAME]
     if not name:
@@ -47,3 +42,11 @@ async def create_folder(message: Message, state: FSMContext, drive: DriveService
     await state.set_state(None)
     await state.update_data(folder_id=folder.id, folder_name=folder.name)
     await message.answer(f"✅ Папка «{folder.name}» создана и выбрана.\nПрисылай фото.")
+
+
+def create_router() -> Router:
+    router = Router(name="folders")
+    router.callback_query.register(ask_folder_name, NewFolder.filter())
+    router.callback_query.register(pick_folder, PickFolder.filter())
+    router.message.register(create_folder, FolderStates.waiting_for_name, F.text)
+    return router
